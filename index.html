@@ -1,1 +1,251 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stickman AI Studio</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10131c;color:white;font-family:Arial,sans-serif}
+header{padding:18px;background:#191e2b;border-bottom:1px solid #30394a}
+h1{margin:0;color:#39c5ff;font-size:23px}
+header p{margin:6px 0 0;color:#9daabd;font-size:12px}
+main{max-width:1000px;margin:auto;padding:15px}
+.panel{background:#1b2231;border:1px solid #30394a;border-radius:12px;padding:14px;margin-bottom:14px}
+h3{margin:0 0 12px;color:#46caff}
+canvas{width:100%;height:auto;background:#f5f5f5;border-radius:8px;display:block}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+button,select{background:#29354a;color:white;border:1px solid #46546a;border-radius:7px;padding:11px;cursor:pointer}
+button.primary{background:#087fc0;border-color:#087fc0}
+button:active{opacity:.7}
+select{min-width:120px}
+input[type=range]{width:100%;accent-color:#21b9ff}
+label{display:block;color:#bdc8d8;margin:12px 0 6px;font-size:13px}
+small{color:#9daabd}
+.status{color:#46caff;font-size:13px;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+<h1>STICKMAN AI STUDIO</h1>
+<p>Your personal stickman animation factory</p>
+</header>
+
+<main>
+<div class="panel">
+<h3>Animation Workspace</h3>
+<canvas id="scene" width="900" height="500"></canvas>
+<div class="controls">
+<button class="primary" id="play">▶ Play</button>
+<button id="pause">Ⅱ Pause</button>
+<button id="restart">↺ Restart</button>
+</div>
+</div>
+
+<div class="panel">
+<h3>Character & Movement</h3>
+<label>Choose animation</label>
+<select id="action">
+<option value="walk">Walking</option>
+<option value="run">Running</option>
+<option value="jump">Jumping</option>
+<option value="wave">Waving</option>
+<option value="fight">Fighting</option>
+<option value="dance">Dancing</option>
+<option value="idle">Standing</option>
+</select>
+
+<label>Character size</label>
+<input id="size" type="range" min="50" max="140" value="100">
+
+<label>Animation speed</label>
+<input id="speed" type="range" min="0.3" max="3" step="0.1" value="1">
+
+<label>Timeline</label>
+<input id="timeline" type="range" min="0" max="100" value="0">
+<small id="time">0%</small>
+
+<div class="controls">
+<button id="record" class="primary">● Record Video</button>
+<button id="stopRecord">■ Stop Recording</button>
+</div>
+<p class="status" id="status">Ready to animate!</p>
+</div>
+
+<div class="panel">
+<h3>How to use</h3>
+<small>
+1. Select a stickman movement.<br><br>
+2. Adjust character size and speed.<br><br>
+3. Press Play to watch the animation.<br><br>
+4. Press Record Video to capture your animation.<br><br>
+5. Stop recording to save your video.
+</small>
+</div>
+</main>
+
+<script>
+const canvas=document.getElementById("scene");
+const ctx=canvas.getContext("2d");
+const action=document.getElementById("action");
+const size=document.getElementById("size");
+const speed=document.getElementById("speed");
+const timeline=document.getElementById("timeline");
+const statusText=document.getElementById("status");
+
+let playing=false;
+let progress=0;
+let last=0;
+let recorder=null;
+let chunks=[];
+let recording=false;
+
+function line(x1,y1,x2,y2){
+ctx.beginPath();
+ctx.moveTo(x1,y1);
+ctx.lineTo(x2,y2);
+ctx.stroke();
+}
+
+function draw(){
+const t=progress/100*Math.PI*2;
+const s=Number(size.value)/100;
+const a=action.value;
+const x=450;
+let bob=0,arm=0,leg=0,tilt=0;
+
+if(a==="walk"){bob=Math.abs(Math.sin(t))*10;arm=Math.sin(t)*35;leg=Math.sin(t)*38}
+if(a==="run"){bob=Math.abs(Math.sin(t))*20;arm=Math.sin(t)*55;leg=Math.sin(t)*65;tilt=-.18}
+if(a==="jump"){bob=-Math.abs(Math.sin(t))*95;arm=-35;leg=Math.sin(t)*35}
+if(a==="wave"){arm=-Math.abs(Math.sin(t*2))*65;leg=0}
+if(a==="fight"){arm=Math.sin(t*3)*70;leg=Math.sin(t*3)*20;tilt=Math.sin(t*3)*.12}
+if(a==="dance"){bob=Math.sin(t*2)*18;arm=Math.sin(t*2)*65;leg=Math.sin(t*2)*45}
+
+ctx.clearRect(0,0,900,500);
+ctx.fillStyle="#f5f5f5";
+ctx.fillRect(0,0,900,500);
+
+ctx.strokeStyle="#d0d0d0";
+ctx.lineWidth=2;
+line(0,410,900,410);
+
+ctx.save();
+ctx.translate(x,300+bob);
+ctx.scale(s,s);
+ctx.rotate(tilt);
+ctx.strokeStyle="#111";
+ctx.fillStyle="#111";
+ctx.lineWidth=9;
+ctx.lineCap="round";
+
+// Head
+ctx.beginPath();
+ctx.arc(0,-120,30,0,Math.PI*2);
+ctx.stroke();
+
+// Body
+line(0,-90,0,20);
+
+// Arms
+line(0,-65,-45+arm,-15);
+line(0,-65,45-arm,-15);
+
+// Legs
+line(0,20,-35+leg,105);
+line(0,20,35-leg,105);
+
+ctx.restore();
+
+ctx.fillStyle="#333";
+ctx.font="18px Arial";
+ctx.fillText("STICKMAN AI STUDIO",20,35);
+ctx.restore();
+}
+
+function frame(now){
+if(playing){
+if(last) progress+=(now-last)*0.004*Number(speed.value);
+if(progress>=100)progress=0;
+timeline.value=progress;
+document.getElementById("time").textContent=Math.round(progress)+"%";
+}
+last=now;
+draw();
+requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+
+document.getElementById("play").onclick=()=>{
+playing=true;
+statusText.textContent="Animation playing!";
+};
+document.getElementById("pause").onclick=()=>{
+playing=false;
+statusText.textContent="Animation paused.";
+};
+document.getElementById("restart").onclick=()=>{
+playing=false;
+progress=0;
+timeline.value=0;
+draw();
+statusText.textContent="Animation restarted.";
+};
+
+timeline.oninput=()=>{
+progress=Number(timeline.value);
+document.getElementById("time").textContent=progress+"%";
+draw();
+};
+
+action.onchange=draw;
+size.oninput=draw;
+
+document.getElementById("record").onclick=()=>{
+if(recording)return;
+if(!canvas.captureStream||!window.MediaRecorder){
+statusText.textContent="Video recording is not supported in this browser.";
+return;
+}
+try{
+chunks=[];
+const stream=canvas.captureStream(30);
+const mime=MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+?"video/webm;codecs=vp9":"video/webm";
+recorder=new MediaRecorder(stream,{mimeType:mime});
+recorder.ondataavailable=e=>{
+if(e.data.size)chunks.push(e.data);
+};
+recorder.onstop=()=>{
+const blob=new Blob(chunks,{type:"video/webm"});
+const url=URL.createObjectURL(blob);
+const link=document.createElement("a");
+link.href=url;
+link.download="my-stickman-animation.webm";
+link.click();
+setTimeout(()=>URL.revokeObjectURL(url),1000);
+statusText.textContent="Your video has been saved!";
+stream.getTracks().forEach(track=>track.stop());
+};
+recorder.start();
+recording=true;
+playing=true;
+statusText.textContent="Recording animation...";
+}catch(e){
+statusText.textContent="Recording could not start. Try another browser.";
+}
+};
+
+document.getElementById("stopRecord").onclick=()=>{
+if(recorder&&recording){
+recorder.stop();
+recording=false;
+playing=false;
+}
+};
+
+draw();
+</script>
+</body>
+</html>
